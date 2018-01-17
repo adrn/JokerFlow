@@ -1,0 +1,5 @@
+*.so
+build
+var
+*.egg-info
+__pycache__
