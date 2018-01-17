@@ -6,10 +6,11 @@
 
 #include <cmath>
 
-#define KEPLER_MAX_ITER 200
-#define KEPLER_TOL      1.234e-10
+#include "kepler.h"
 
 using namespace tensorflow;
+using CPUDevice = Eigen::ThreadPoolDevice;
+using GPUDevice = Eigen::GpuDevice;
 
 REGISTER_OP("Kepler")
   .Attr("T: {float, double}")
@@ -28,22 +29,16 @@ REGISTER_OP("Kepler")
     return Status::OK();
   });
 
-
 template <typename T>
-inline T kepler (const T& M, const T& e) {
-  T E0 = M, E = M;
-  for (int i = 0; i < KEPLER_MAX_ITER; ++i) {
-    T g = E0 - e * sin(E0) - M, gp = 1.0 - e * cos(E0);
-    E = E0 - g / gp;
-    if (std::abs((E - E0) / E) <= T(KEPLER_TOL)) return E;
-    E0 = E;
+struct KeplerFunctor<CPUDevice, T> {
+  void operator()(const CPUDevice& d, int size, const T* M, const T* e, T* E) {
+    for (int n = 0; n < size; ++n) {
+      E[n] = kepler<T>(M[n], e[n]);
+    }
   }
+};
 
-  // If we get here, we didn't converge, but return the best estimate.
-  return E;
-}
-
-template <typename T>
+template <typename Device, typename T>
 class KeplerOp : public OpKernel {
  public:
   explicit KeplerOp(OpKernelConstruction* context) : OpKernel(context) {}
@@ -62,13 +57,19 @@ class KeplerOp : public OpKernel {
     OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape({N}), &E_tensor));
 
     // Access the data
-    auto M = M_tensor.template flat<T>();
-    auto e = e_tensor.template flat<T>();
+    const auto M = M_tensor.template flat<T>();
+    const auto e = e_tensor.template flat<T>();
     auto E = E_tensor->template flat<T>();
 
-    for (int64 n = 0; n < N; ++n) {
-      E(n) = kepler<T>(M(n), e(n));
-    }
+    OP_REQUIRES(context, N <= tensorflow::kint32max,
+                errors::InvalidArgument("Too many elements in tensor"));
+    KeplerFunctor<Device, T>()(
+        context->eigen_device<Device>(),
+        static_cast<int>(N), M.data(), e.data(), E.data());
+
+    //for (int64 n = 0; n < N; ++n) {
+    //  E(n) = kepler<T>(M(n), e(n));
+    //}
 
     // Could maybe parallelize on the CPU...
     //auto pool = context->device()->tensorflow_cpu_worker_threads()->workers;
@@ -85,11 +86,18 @@ class KeplerOp : public OpKernel {
 #define REGISTER_KERNEL(type)                                              \
   REGISTER_KERNEL_BUILDER(                                                 \
       Name("Kepler").Device(DEVICE_CPU).TypeConstraint<type>("T"), \
-      KeplerOp<type>)
+      KeplerOp<CPUDevice, type>)
 
 REGISTER_KERNEL(float);
 REGISTER_KERNEL(double);
 
 #undef REGISTER_KERNEL
-#undef KEPLER_MAX_ITER
-#undef KEPLER_TOL
+
+#ifdef GOOGLE_CUDA
+
+extern template KeplerFunctor<GPUDevice, float>;
+REGISTER_KERNEL_BUILDER(
+    Name("Kepler").Device(DEVICE_GPU).TypeConstraint<T>("T"),
+    ExampleOp<GPUDevice, T>);
+
+#endif  // GOOGLE_CUDA

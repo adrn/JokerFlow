@@ -54,6 +54,17 @@ def cpp_flag(compiler):
                            'is needed!')
 
 
+def search_on_path(filenames):
+    """Find file on system path."""
+    # From PyCUDA
+    search_path = os.environ["PATH"]
+    paths = search_path.split(os.pathsep)
+    for path in paths:
+        for filename in filenames:
+            if os.path.exists(os.path.join(path, filename)):
+                return os.path.abspath(os.path.join(path, filename))
+
+
 class build_ext(_build_ext):
     c_opts = {
         "msvc": ["/EHsc"],
@@ -64,7 +75,12 @@ class build_ext(_build_ext):
         import tensorflow as tf
         include_dirs = ["jokerflow", tf.sysconfig.get_include()]
         include_dirs.append(os.path.join(
-            include_dirs[0], "external/nsync/public"))
+            include_dirs[1], "external/nsync/public"))
+
+        # Check out the GPU...
+        nvcc = search_on_path(["nvcc"])
+        if nvcc is not None:
+            print("Build GPU kernel...")
 
         for ext in self.extensions:
             ext.include_dirs = include_dirs + ext.include_dirs
