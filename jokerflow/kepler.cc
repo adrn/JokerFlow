@@ -29,6 +29,8 @@ REGISTER_OP("Kepler")
     return Status::OK();
   });
 
+// Implementation of forward Kepler function
+
 template <typename T>
 struct KeplerFunctor<CPUDevice, T> {
   void operator()(const CPUDevice& d, int size, const T* M, const T* e, T* E) {
@@ -51,6 +53,8 @@ class KeplerOp : public OpKernel {
     // Dimensions
     const int64 N = M_tensor.dim_size(0);
     OP_REQUIRES(context, e_tensor.dim_size(0) == N, errors::InvalidArgument("dimension mismatch"));
+    OP_REQUIRES(context, N <= tensorflow::kint32max,
+                errors::InvalidArgument("Too many elements in tensor"));
 
     // Output
     Tensor* E_tensor = NULL;
@@ -61,24 +65,9 @@ class KeplerOp : public OpKernel {
     const auto e = e_tensor.template flat<T>();
     auto E = E_tensor->template flat<T>();
 
-    OP_REQUIRES(context, N <= tensorflow::kint32max,
-                errors::InvalidArgument("Too many elements in tensor"));
     KeplerFunctor<Device, T>()(
         context->eigen_device<Device>(),
         static_cast<int>(N), M.data(), e.data(), E.data());
-
-    //for (int64 n = 0; n < N; ++n) {
-    //  E(n) = kepler<T>(M(n), e(n));
-    //}
-
-    // Could maybe parallelize on the CPU...
-    //auto pool = context->device()->tensorflow_cpu_worker_threads()->workers;
-    //Shard(pool->NumThreads(), pool, N, 10, [&](int64 start, int64 end) {
-    //  for(int64 n = start; n < end; ++n) {
-    //    E(n) = kepler<T>(M(n), e(n));
-    //  }
-    //});
-
   }
 };
 

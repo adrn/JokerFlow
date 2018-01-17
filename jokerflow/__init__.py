@@ -14,3 +14,9 @@ dirname = os.path.dirname(os.path.abspath(__file__))
 mod = tf.load_op_library(os.path.join(dirname, "kepler" + suffix))
 
 kepler = mod.kepler
+
+
+@tf.RegisterGradient("Kepler")
+def _kepler_grad(op, *grads):
+    args = list(op.inputs) + list(op.outputs) + list(grads)
+    return mod.kepler_grad(*args)

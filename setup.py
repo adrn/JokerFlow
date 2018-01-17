@@ -143,6 +143,7 @@ if __name__ == "__main__":
         Extension("jokerflow.kepler",
                   sources=[
                       os.path.join("jokerflow", "kepler.cc"),
+                      os.path.join("jokerflow", "kepler_grad.cc"),
                   ],
                   language="c++"),
     ]
