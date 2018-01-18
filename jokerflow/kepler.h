@@ -1,8 +1,8 @@
 #ifndef _KEPLER_H_
 #define _KEPLER_H_
 
-#define KEPLER_MAX_ITER 200
-#define KEPLER_TOL      1.234e-10
+#define KEPLER_MAX_ITER 2000
+#define KEPLER_TOL      1.234e-14
 
 template <typename T>
 inline T kepler (const T& M, const T& e) {
@@ -10,7 +10,9 @@ inline T kepler (const T& M, const T& e) {
   for (int i = 0; i < KEPLER_MAX_ITER; ++i) {
     T g = E0 - e * sin(E0) - M, gp = 1.0 - e * cos(E0);
     E = E0 - g / gp;
-    if (std::abs((E - E0) / E) <= T(KEPLER_TOL)) return E;
+    if (std::abs((E - E0) / E) <= T(KEPLER_TOL)) {
+      return E;
+    }
     E0 = E;
   }
 
